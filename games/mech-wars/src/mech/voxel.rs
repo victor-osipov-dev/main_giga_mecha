@@ -1,8 +1,8 @@
 //! Voxel storage that is independent of Minecraft block states.
 
-pub const GRID_X: usize = 12;
-pub const GRID_Y: usize = 24;
-pub const GRID_Z: usize = 8;
+pub const GRID_X: usize = 16;
+pub const GRID_Y: usize = 34;
+pub const GRID_Z: usize = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MechVoxel {
@@ -41,10 +41,13 @@ pub enum Material {
     Weapon = 4,
     Glass = 5,
     Eye = 6,
+    Panel = 7,
+    Dark = 8,
+    Glow = 9,
 }
 
 impl Material {
-    pub const ALL: [Material; 7] = [
+    pub const ALL: [Material; 10] = [
         Material::Steel,
         Material::Armour,
         Material::Joint,
@@ -52,6 +55,9 @@ impl Material {
         Material::Weapon,
         Material::Glass,
         Material::Eye,
+        Material::Panel,
+        Material::Dark,
+        Material::Glow,
     ];
 
     pub fn from_id(id: u16) -> Self {
@@ -71,6 +77,9 @@ impl Material {
             Material::Weapon => "blackstone",
             Material::Glass => "tinted_glass",
             Material::Eye => "redstone_lamp",
+            Material::Panel => "light_gray_concrete",
+            Material::Dark => "black_concrete",
+            Material::Glow => "glowstone",
         }
     }
 }

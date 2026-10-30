@@ -14,6 +14,16 @@ pub const BODY_DEGREES_PER_TICK: f32 = 5.0;
 pub const TORSO_DEGREES_PER_TICK: f32 = 10.0;
 pub const TORSO_LIMIT_DEGREES: f32 = 45.0;
 pub const ARENA_LIMIT: f64 = 128.0;
+/// Peak thigh pitch (forward/back swing) while walking, in radians.
+pub const THIGH_SWING_RADIANS: f32 = 32.0_f32.to_radians();
+/// Peak knee bend while the foot is being carried forward, in radians.
+pub const KNEE_BEND_RADIANS: f32 = 55.0_f32.to_radians();
+/// One full gait cycle (both legs) is covered after this many blocks walked.
+pub const STRIDE_BLOCKS: f32 = 2.0;
+/// How far the body must travel before a new leg pose is emitted. Its
+/// distance-gated, so at full speed the legs change ~2 times per second and
+/// the sync traffic stays far below the outbound queue limits.
+pub const GAIT_POSE_DISTANCE: f32 = 0.75;
 
 #[derive(Clone, Debug)]
 pub struct MechInstance {
@@ -26,6 +36,20 @@ pub struct MechInstance {
     pub speed: f64,
     pub speed_limit: f64,
     move_accumulator: f64,
+    /// Signed distance walked along the current heading; drives the gait.
+    pub stride: f32,
+    /// Thigh pitch (radians, about the hip axis): [left, right]. Positive
+    /// pitches the leg forward. The renderer rotates leg voxels around the
+    /// hip joint instead of sliding them.
+    pub thigh_pitch: [f32; 2],
+    /// Knee bend (radians) for the shin/foot segment, per side.
+    pub knee_pitch: [f32; 2],
+    /// The `stride` value at which the joint pose was last recomputed. The
+    /// pose only refreshes after the body has travelled `GAIT_POSE_DISTANCE`
+    /// blocks, so walking traffic scales with distance, not with wall-clock
+    /// ticks. This eliminates the per-tick leg jitter that filled the
+    /// outbound queue.
+    last_pose_stride: f32,
     pub orders: MechOrders,
     pub fire_once: bool,
     pub definition: MechDefinition,
@@ -47,6 +71,10 @@ impl MechInstance {
             speed: 0.0,
             speed_limit: FORWARD_SPEED,
             move_accumulator: 0.0,
+            stride: 0.0,
+            thigh_pitch: [0.0, 0.0],
+            knee_pitch: [0.0, 0.0],
+            last_pose_stride: 0.0,
             orders: MechOrders::default(),
             fire_once: false,
             definition: build_test_mech(),
@@ -188,6 +216,45 @@ impl MechInstance {
                 self.move_accumulator = 0.0;
             }
         }
+
+        self.update_gait(dt);
+    }
+
+    /// Advances the gait from distance travelled. One full cycle takes
+    /// `STRIDE_BLOCKS` blocks: the left and right thighs pitch in opposition
+    /// (one forward, one back) and the knee bends to carry the foot forward,
+    /// like a real two-segment leg. The pose only refreshes every
+    /// `GAIT_POSE_DISTANCE` blocks, so the leg sync traffic tracks the body's
+    /// steps instead of generating a continuous per-tick stream. When
+    /// stopped, the joints ease to rest.
+    fn update_gait(&mut self, dt: f32) {
+        if self.speed.abs() > 0.001 {
+            self.stride += self.speed as f32 * dt;
+            if (self.stride - self.last_pose_stride).abs() < GAIT_POSE_DISTANCE {
+                return;
+            }
+            self.last_pose_stride = self.stride;
+            let cycle = self.stride / STRIDE_BLOCKS;
+            let left = cycle * std::f32::consts::TAU;
+            let right = left + std::f32::consts::PI;
+            self.thigh_pitch[0] = THIGH_SWING_RADIANS * left.sin();
+            self.thigh_pitch[1] = THIGH_SWING_RADIANS * right.sin();
+            self.knee_pitch[0] = KNEE_BEND_RADIANS * left.sin().max(0.0);
+            self.knee_pitch[1] = KNEE_BEND_RADIANS * right.sin().max(0.0);
+        } else {
+            for pitch in [&mut self.thigh_pitch, &mut self.knee_pitch] {
+                for v in pitch {
+                    if v.abs() < 0.02 {
+                        *v = 0.0;
+                    } else {
+                        *v *= 0.7;
+                    }
+                }
+            }
+            if self.thigh_pitch == [0.0, 0.0] && self.knee_pitch == [0.0, 0.0] {
+                self.stride = 0.0;
+            }
+        }
     }
 
     /// World-space centre of a grouped local box, optionally including torso
@@ -252,7 +319,7 @@ mod tests {
     fn spawn_centres_the_model() {
         let mech = MechInstance::spawn(1, Uuid::nil(), [100.0, 65.0, 200.0]);
         assert!(mech.alive);
-        assert_eq!(mech.grid().dims, [12, 24, 8]);
+        assert_eq!(mech.grid().dims, [16, 34, 10]);
     }
 
     #[test]
@@ -285,6 +352,33 @@ mod tests {
             mech.tick(0.05);
         }
         assert!(mech.torso_yaw.abs() < 0.001);
+    }
+
+    #[test]
+    fn walking_gait_swings_legs_in_opposition() {
+        let mut mech = MechInstance::spawn(1, Uuid::nil(), [0.0, 65.0, 0.0]);
+        mech.apply_command(MechCommand::MoveForward);
+        let mut opposed = false;
+        let mut knee_bent = false;
+        for _ in 0..400 {
+            mech.tick(0.05);
+            if mech.thigh_pitch[0] * mech.thigh_pitch[1] < 0.0
+                && mech.thigh_pitch[0].abs() > 0.2
+                && mech.thigh_pitch[1].abs() > 0.2
+            {
+                opposed = true;
+            }
+            if mech.knee_pitch.iter().any(|k| *k > 0.2) {
+                knee_bent = true;
+            }
+        }
+        assert!(mech.speed > 0.5, "speed {}", mech.speed);
+        assert!(
+            opposed,
+            "legs never swung in opposition: {:?}",
+            mech.thigh_pitch
+        );
+        assert!(knee_bent, "knee never bent: {:?}", mech.knee_pitch);
     }
 
     #[test]

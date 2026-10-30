@@ -13,10 +13,10 @@ use uuid::Uuid;
 
 use crate::mech::{shell_voxels, ComponentId, Material, MechInstance};
 
-/// The plan's first-renderer limit was 500. A one-layer shell of the current
-/// model is larger, so the experimental limit is raised; two mechs still fit
-/// comfortably in the intended two-player arena.
-pub const MAX_DISPLAYS_PER_MECH: usize = 700;
+/// One 1x1x1 block-display entity per visible shell voxel. The heavy Atlas MK-II
+/// model needs ~1100, so the cap is set to 1200 per mech (one extreme single
+/// mech, two of them fit in the two-player arena).
+pub const MAX_DISPLAYS_PER_MECH: usize = 1200;
 
 const META_BLOCK_STATE: u8 = 23;
 const META_TYPE_BLOCK_STATE: i32 = 14;
@@ -142,9 +142,27 @@ fn cell_for(mech: &MechInstance, component: ComponentId, local: [usize; 3]) -> [
             | ComponentId::RightArm
             | ComponentId::Reactor
             | ComponentId::MainWeapon
+            | ComponentId::Backpack
+            | ComponentId::Antenna
     );
-    let mut x = local[0] as f64 + 0.5 - sx as f64 / 2.0;
-    let mut z = local[2] as f64 + 0.5 - sz as f64 / 2.0;
+    // Leg voxels are rotated around the hip (thigh) and knee (shin/foot)
+    // joints, so the legs swing like real pendulums instead of sliding.
+    let leg_index = match component {
+        ComponentId::LeftLeg => Some(0),
+        ComponentId::RightLeg => Some(1),
+        _ => None,
+    };
+    let mut ox = 0.0f64;
+    let mut oy = 0.0f64;
+    let mut oz = 0.0f64;
+    if let Some(i) = leg_index {
+        let offset = leg_offset(mech, i, local);
+        ox = offset[0];
+        oy = offset[1];
+        oz = offset[2];
+    }
+    let mut x = (local[0] as f64 + ox) + 0.5 - sx as f64 / 2.0;
+    let mut z = (local[2] as f64 + oz) + 0.5 - sz as f64 / 2.0;
     if torso {
         let angle = f64::from(quantize45(mech.torso_yaw)).to_radians();
         let (nx, nz) = (
@@ -165,9 +183,48 @@ fn cell_for(mech: &MechInstance, component: ComponentId, local: [usize; 3]) -> [
     // Snap the rotated centre to the nearest cell corner.
     [
         bx + (nx - 0.5).round() as i32,
-        by + local[1] as i32,
+        by + (local[1] as f64 + oy).round() as i32,
         bz + (nz - 0.5).round() as i32,
     ]
+}
+
+/// Local-space offset for a leg voxel after applying thigh and knee rotation.
+/// The leg is modelled as two rigid segments: the thigh pivots at the hip,
+/// and the shin/foot pivot at the knee (which itself is carried by the thigh).
+fn leg_offset(mech: &MechInstance, i: usize, local: [usize; 3]) -> [f64; 3] {
+    const HIP_X: [f64; 2] = [3.5, 12.5];
+    const HIP_Y: f64 = 18.5;
+    const HIP_Z: f64 = 4.5;
+    const KNEE_Y: f64 = 13.5;
+
+    let thigh = f64::from(mech.thigh_pitch[i]);
+    let knee = f64::from(mech.knee_pitch[i]);
+    let hx = HIP_X[i];
+    let cx = local[0] as f64 + 0.5;
+    let cy = local[1] as f64 + 0.5;
+    let cz = local[2] as f64 + 0.5;
+
+    let (fx, fy, fz) = if cy >= KNEE_Y {
+        let dy = cy - HIP_Y;
+        let dz = cz - HIP_Z;
+        let y = dy * thigh.cos() + dz * thigh.sin();
+        let z = -dy * thigh.sin() + dz * thigh.cos();
+        (hx, HIP_Y + y, HIP_Z + z)
+    } else {
+        let dy = KNEE_Y - HIP_Y;
+        let k_y = dy * thigh.cos();
+        let k_z = -dy * thigh.sin();
+        let kx = hx;
+        let ky = HIP_Y + k_y;
+        let kz = HIP_Z + k_z;
+        let vy = cy - KNEE_Y;
+        let vz = cz - HIP_Z;
+        let y = vy * knee.cos() + vz * knee.sin();
+        let z = -vy * knee.sin() + vz * knee.cos();
+        (kx, ky + y, kz + z)
+    };
+
+    [fx - cx, fy - cy, fz - cz]
 }
 
 fn quantize45(yaw: f32) -> f32 {
@@ -239,5 +296,27 @@ mod tests {
         }
         let updates = sync(&data, &mech, &mut spawned.renderer);
         assert!(!updates.is_empty());
+    }
+
+    #[test]
+    fn gait_keeps_feet_on_the_ground() {
+        let mut mech = MechInstance::spawn(1, Uuid::nil(), [0.0, 65.0, 0.0]);
+        mech.apply_command(MechCommand::MoveForward);
+        for _ in 0..200 {
+            mech.tick(0.05);
+            let by = mech.position[1].round() as i32;
+            for (x, y, z, voxel) in shell_voxels(mech.grid()) {
+                let component = ComponentId::from_id(voxel.component_id);
+                if component == ComponentId::LeftLeg || component == ComponentId::RightLeg {
+                    let cell = cell_for(&mech, component, [x, y, z]);
+                    let _ = y;
+                    assert!(
+                        cell[1] >= by,
+                        "leg voxel {} sank below ground: {cell:?} < {by}",
+                        component.name()
+                    );
+                }
+            }
+        }
     }
 }

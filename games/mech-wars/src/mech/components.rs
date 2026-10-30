@@ -12,10 +12,12 @@ pub enum ComponentId {
     RightArm = 6,
     Reactor = 7,
     MainWeapon = 8,
+    Backpack = 9,
+    Antenna = 10,
 }
 
 impl ComponentId {
-    pub const ALL: [ComponentId; 9] = [
+    pub const ALL: [ComponentId; 11] = [
         Self::Root,
         Self::LeftLeg,
         Self::RightLeg,
@@ -25,6 +27,8 @@ impl ComponentId {
         Self::RightArm,
         Self::Reactor,
         Self::MainWeapon,
+        Self::Backpack,
+        Self::Antenna,
     ];
 
     pub fn from_id(id: u16) -> Self {
@@ -35,9 +39,13 @@ impl ComponentId {
         match self {
             Self::Root => None,
             Self::LeftLeg | Self::RightLeg | Self::Torso => Some(Self::Root),
-            Self::Head | Self::LeftArm | Self::RightArm | Self::Reactor | Self::MainWeapon => {
-                Some(Self::Torso)
-            }
+            Self::Head
+            | Self::LeftArm
+            | Self::RightArm
+            | Self::Reactor
+            | Self::MainWeapon
+            | Self::Backpack
+            | Self::Antenna => Some(Self::Torso),
         }
     }
 
@@ -52,6 +60,8 @@ impl ComponentId {
             Self::RightArm => "right_arm",
             Self::Reactor => "reactor",
             Self::MainWeapon => "main_weapon",
+            Self::Backpack => "backpack",
+            Self::Antenna => "antenna",
         }
     }
 }

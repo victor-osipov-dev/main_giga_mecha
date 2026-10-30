@@ -13,7 +13,9 @@ use uuid::Uuid;
 
 /// Capacity of one player's outbound queue. A client that cannot keep up is
 /// kicked rather than allowed to grow the server's memory without bound.
-pub const OUTBOUND_QUEUE: usize = 4096;
+/// The block-built Atlas MK-II bursts thousands of spawn/step packets, so the
+/// cap is generous enough to absorb walking and rejoin bursts without kicking.
+pub const OUTBOUND_QUEUE: usize = 16384;
 
 pub enum Outbound {
     Packet(Bytes),
