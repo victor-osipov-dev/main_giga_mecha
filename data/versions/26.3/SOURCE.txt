@@ -1,0 +1,10 @@
+Minecraft 26.3
+server.jar: https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar
+sha1: 33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c
+server jar size: 62294556
+data generator: java -DbundlerMainClass=net.minecraft.data.Main -jar server.jar --reports
+Java runtime used: Temurin 25 (JRE)
+prepared: 2026-10-29
+packets.json: data/versions/26.3/generated/reports/packets.json
+dynamic registries: data/versions/26.3/datapack/minecraft/*
+extracted files: 1315

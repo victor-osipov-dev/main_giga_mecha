@@ -1,0 +1,11 @@
+[package]
+name = "mech-wars"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+arcade-protocol.workspace = true
+arcade-protocol-data.workspace = true
+thiserror.workspace = true
+uuid.workspace = true

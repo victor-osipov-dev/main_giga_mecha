@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+*.log
+config.toml
+server-icon.png
+data/versions/*/server.jar
+data/versions/*/server-inner.jar
+data/versions/*/libraries
+data/versions/*/logs
+data/versions/*/generated

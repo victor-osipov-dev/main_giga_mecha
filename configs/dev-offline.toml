@@ -1,0 +1,14 @@
+bind = "127.0.0.1:25566"
+motd = "Voxel Arcade RS — offline test"
+max_players = 20
+max_connections = 32
+online_mode = false
+allow_offline_public = false
+compression_threshold = 256
+view_distance = 3
+simulation_distance = 3
+game_mode = "creative"
+game_update_hz = 10
+idle_timeout_seconds = 30
+keepalive_seconds = 15
+data_dir = "data"

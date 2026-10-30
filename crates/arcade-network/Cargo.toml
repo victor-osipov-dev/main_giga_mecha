@@ -1,0 +1,29 @@
+[package]
+name = "arcade-network"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+arcade-auth.workspace = true
+arcade-metrics.workspace = true
+arcade-players.workspace = true
+arcade-protocol.workspace = true
+arcade-protocol-data.workspace = true
+arcade-render.workspace = true
+arcade-runtime.workspace = true
+arcade-world.workspace = true
+bytes.workspace = true
+flappy-bird.workspace = true
+mech-wars.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+test-client = { path = "../../tools/test-client" }

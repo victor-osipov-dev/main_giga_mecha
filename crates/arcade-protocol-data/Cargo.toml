@@ -1,0 +1,13 @@
+[package]
+name = "arcade-protocol-data"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+arcade-protocol.workspace = true
+minecraft_data.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
